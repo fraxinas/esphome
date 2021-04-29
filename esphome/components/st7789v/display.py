@@ -14,6 +14,8 @@ from esphome.const import (
 from . import st7789v_ns
 
 CODEOWNERS = ["@kbx81"]
+CONF_DIMENSIONS = "dimensions"
+
 
 DEPENDENCIES = ["spi"]
 
@@ -28,13 +30,14 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(ST7789V),
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+            cv.Optional(CONF_DIMENSIONS, default="135x240"): cv.dimensions,
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(spi.spi_device_schema())
+    .extend(spi.spi_device_schema(cs_pin_required=False))
 )
 
 
@@ -58,5 +61,8 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
+    cg.add(var.set_width(config[CONF_DIMENSIONS][0]))
+    cg.add(var.set_height(config[CONF_DIMENSIONS][1]))
 
     await display.register_display(var, config)

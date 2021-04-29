@@ -115,6 +115,8 @@ class ST7789V : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
+  void set_width(int width) { this->width_ = width; }
+  void set_height(int height) { this->height_ = height; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -130,6 +132,7 @@ class ST7789V : public PollingComponent,
   GPIOPin *dc_pin_;
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
+  int width_, height_;
 
   void init_reset_();
   void backlight_(bool onoff);

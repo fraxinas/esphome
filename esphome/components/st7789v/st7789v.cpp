@@ -112,21 +112,25 @@ void ST7789V::setup() {
   backlight_(true);
 
   this->init_internal_(this->get_buffer_length_());
+  if (this->buffer_ == nullptr)
+    return;
   memset(this->buffer_, 0x00, this->get_buffer_length_());
 }
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
-  LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  B/L Pin: ", this->backlight_pin_);
+  if (this->backlight_pin_ != nullptr)
+    LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void ST7789V::update() {
+  if (this->buffer_ == nullptr)
+    return;
   this->do_update_();
   this->write_display_data();
 }
@@ -219,12 +223,12 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   return write_array(byte, size * 2);
 }
 
-int ST7789V::get_height_internal() {
-  return 240;  // 320;
+int ST7789V::get_width_internal() {
+	return this->width_;
 }
 
-int ST7789V::get_width_internal() {
-  return 135;  // 240;
+int ST7789V::get_height_internal() {
+	return this->height_;
 }
 
 size_t ST7789V::get_buffer_length_() {
