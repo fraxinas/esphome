@@ -6,7 +6,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include <exception>
 
 namespace esphome {
 namespace display {
@@ -16,19 +15,104 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
-void DisplayBuffer::init_internal_(uint32_t buffer_length) {
-  try {
-    this->buffer_ = new uint8_t[buffer_length];
-  }
-  catch (std::bad_alloc& ba)
+DisplayBufferHeapList::DisplayBufferHeapList() {
+  root=NULL;
+  last=NULL;
+  _size=0;
+}
+
+DisplayBufferHeapList::~DisplayBufferHeapList() {
+  Buffer_* tmp;
+  while (root != NULL)
   {
-    ESP_LOGE(TAG, "Could not allocate buffer of size %" PRIu32 " for display (%s)!", buffer_length, ba.what());
-    ESP_LOGD(TAG, "ESP.getMaxAllocHeap: %" PRIu32, ESP.getMaxAllocHeap());
-    ESP_LOGD(TAG, "ESP.getFreeHeap: %" PRIu32, ESP.getFreeHeap());
-    this->buffer_ = nullptr;
-    return;
+    tmp = root;
+    root = root->next;
+    delete tmp;
   }
-  ESP_LOGD(TAG, "allocated display buffer of size %" PRIu32 " @%p", buffer_length, this->buffer_);
+  last = NULL;
+  _size=0;
+}
+
+bool DisplayBufferHeapList::getChunk(int index, uint8_t *&chunk, size_t &len) {
+
+  int _pos = 0;
+  Buffer_* current = root;
+
+  while (_pos < index && current) {
+    current = current->next;
+    _pos++;
+  }
+
+  if (_pos == index) {
+    chunk = current->data;
+    len = current->len;
+    ESP_LOGD("display buffer","get chunk %d @ %p len=%" PRIu32, index, current->data, current->len);
+    return true;
+  }
+
+  return false;
+}
+
+size_t DisplayBufferHeapList::size() {
+  return _size;
+}
+
+bool DisplayBufferHeapList::add(uint8_t *buffer, size_t len) {
+
+  Buffer_ *tmp = new Buffer_;
+  tmp->len = len;
+  tmp->data = buffer;
+  tmp->next = NULL;
+  
+  if(root){
+    last->next = tmp;
+    last = tmp;
+  } else {
+    root = tmp;
+    last = tmp;
+  }
+  
+  _size++;
+  ESP_LOGD("display buffer","added chunk %d @ %p len=%" PRIu32, _size, buffer, len);
+  return true;
+}
+
+uint8_t& DisplayBufferHeapList::operator[](size_t index) {
+  int offset = 0;
+  Buffer_* current = root;
+
+  while (current) {
+    if (offset < current->len)
+    {
+      return (current->data[index-offset]);
+    }
+    current = current->next;
+    offset += current->len;
+  }
+  // throw exception on fall-through
+}
+
+void DisplayBuffer::init_internal_(uint32_t buffer_length) {
+  size_t allocated = 0;
+  this->buffers_ = new DisplayBufferHeapList;
+  
+  while (allocated < buffer_length)
+  {
+    size_t heap_chunk_avail = ESP.getMaxAllocHeap();
+    size_t needed = buffer_length - allocated; 
+    size_t allocate = (needed > heap_chunk_avail) ? heap_chunk_avail : needed;
+    ESP_LOGD(TAG, "ESP.getMaxAllocHeap=%" PRIu32 "  needed=%" PRIu32, heap_chunk_avail, needed);
+    uint8_t *buffer = (uint8_t *) heap_caps_malloc(allocate, MALLOC_CAP_8BIT);
+    if (buffer == nullptr)
+    {
+      ESP_LOGE(TAG, "Could not allocate buffer of size %" PRIu32 " for display! ESP.getFreeHeap: %" PRIu32, buffer_length, ESP.getFreeHeap());
+      this->buffers_ = nullptr;
+      return;
+    }
+    (this->buffers_)->add(buffer, allocate);
+    allocated += allocate;
+    ESP_LOGD(TAG, "added chunk @%p to DisplayBufferHeapList[%d]. allocated=%" PRIu32, buffer, this->buffers_->size(), allocated);
+  }
   this->clear();
 }
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }

@@ -87,6 +87,7 @@ class Image;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
+class DisplayBufferHeapList;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
@@ -348,8 +349,8 @@ class DisplayBuffer {
   void init_internal_(uint32_t buffer_length);
 
   void do_update_();
-
-  uint8_t *buffer_{nullptr};
+ 
+  DisplayBufferHeapList *buffers_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
@@ -374,6 +375,29 @@ class DisplayPage {
   display_writer_t writer_;
   DisplayPage *prev_{nullptr};
   DisplayPage *next_{nullptr};
+};
+
+struct Buffer_
+{
+  size_t len;
+  uint8_t *data;
+  Buffer_ *next;
+};
+  
+class DisplayBufferHeapList {
+  protected:
+    size_t _size;
+    Buffer_ *root;
+    Buffer_ *last;
+
+  public:
+    DisplayBufferHeapList();
+    virtual ~DisplayBufferHeapList();
+
+    virtual size_t size();
+    virtual bool add(uint8_t *buffer, size_t len);
+    virtual bool getChunk(int index, uint8_t *&chunk, size_t &len);
+    virtual uint8_t& operator[](size_t index);
 };
 
 struct GlyphData {
