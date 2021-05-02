@@ -96,6 +96,14 @@ void DisplayBufferHeapList::set_pixel(size_t index, uint8_t data) {
   }
 }
 
+void DisplayBufferHeapList::clear_pixels(uint8_t pattern) {
+  Buffer_* current = root;
+  while (current) {
+    memset(current->data, pattern, current->len);
+    current = current->next;
+  }
+}
+
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   size_t allocated = 0;
   this->buffers_ = new DisplayBufferHeapList;

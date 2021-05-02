@@ -399,6 +399,7 @@ class DisplayBufferHeapList {
     bool get_chunk(size_t index, uint8_t *&chunk, size_t &len);
     uint8_t *get_pixel(size_t index);
     void set_pixel(size_t index, uint8_t data);
+    void clear_pixels(uint8_t pattern=0x00);
 };
 
 struct GlyphData {
