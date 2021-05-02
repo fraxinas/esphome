@@ -33,7 +33,7 @@ DisplayBufferHeapList::~DisplayBufferHeapList() {
   _size=0;
 }
 
-bool DisplayBufferHeapList::getChunk(int index, uint8_t *&chunk, size_t &len) {
+bool DisplayBufferHeapList::get_chunk(size_t index, uint8_t *&chunk, size_t &len) {
 
   int _pos = 0;
   Buffer_* current = root;
@@ -46,7 +46,6 @@ bool DisplayBufferHeapList::getChunk(int index, uint8_t *&chunk, size_t &len) {
   if (_pos == index) {
     chunk = current->data;
     len = current->len;
-    ESP_LOGD("display buffer","get chunk %d @ %p len=%" PRIu32, index, current->data, current->len);
     return true;
   }
 
@@ -73,23 +72,28 @@ bool DisplayBufferHeapList::add(uint8_t *buffer, size_t len) {
   }
   
   _size++;
-  ESP_LOGD("display buffer","added chunk %d @ %p len=%" PRIu32, _size, buffer, len);
   return true;
 }
 
-uint8_t& DisplayBufferHeapList::operator[](size_t index) {
+uint8_t *DisplayBufferHeapList::get_pixel(size_t index) {
   int offset = 0;
   Buffer_* current = root;
-
+  
   while (current) {
-    if (offset < current->len)
-    {
-      return (current->data[index-offset]);
+    if (offset < current->len) {
+      return &(current->data[index-offset]);
     }
     current = current->next;
     offset += current->len;
   }
-  // throw exception on fall-through
+  return nullptr;
+}
+
+void DisplayBufferHeapList::set_pixel(size_t index, uint8_t data) {
+  uint8_t *pixel = get_pixel(index);
+  if (pixel) {
+    *pixel = data;
+  }
 }
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
@@ -111,7 +115,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
     }
     (this->buffers_)->add(buffer, allocate);
     allocated += allocate;
-    ESP_LOGD(TAG, "added chunk @%p to DisplayBufferHeapList[%d]. allocated=%" PRIu32, buffer, this->buffers_->size(), allocated);
+    ESP_LOGD(TAG, "added chunk @%p to DisplayBufferHeapList[%d]. allocated=%" PRIu32, buffer, this->buffers_->size()-1, allocated);
   }
   this->clear();
 }

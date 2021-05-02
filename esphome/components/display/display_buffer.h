@@ -392,12 +392,13 @@ class DisplayBufferHeapList {
 
   public:
     DisplayBufferHeapList();
-    virtual ~DisplayBufferHeapList();
+    ~DisplayBufferHeapList();
 
-    virtual size_t size();
-    virtual bool add(uint8_t *buffer, size_t len);
-    virtual bool getChunk(int index, uint8_t *&chunk, size_t &len);
-    virtual uint8_t& operator[](size_t index);
+    size_t size();
+    bool add(uint8_t *buffer, size_t len);
+    bool get_chunk(size_t index, uint8_t *&chunk, size_t &len);
+    uint8_t *get_pixel(size_t index);
+    void set_pixel(size_t index, uint8_t data);
 };
 
 struct GlyphData {
