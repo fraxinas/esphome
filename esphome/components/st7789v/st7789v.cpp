@@ -112,9 +112,11 @@ void ST7789V::setup() {
   backlight_(true);
 
   this->init_internal_(this->get_buffer_length_());
-  if (this->buffer_ == nullptr)
+  ESP_LOGD(TAG,"inited display buffer %d DisplayBufferHeapList @ %p number of chunks: %d", this->get_buffer_length_(), this->buffers_, this->buffers_->size());
+  if (this->buffers_ == nullptr)
     return;
-  memset(this->buffer_, 0x00, this->get_buffer_length_());
+  
+  this->buffers_->clear_pixels();
 }
 
 void ST7789V::dump_config() {
@@ -129,7 +131,7 @@ void ST7789V::dump_config() {
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void ST7789V::update() {
-  if (this->buffer_ == nullptr)
+  if (this->buffers_ == nullptr)
     return;
   this->do_update_();
   this->write_display_data();
@@ -138,11 +140,17 @@ void ST7789V::update() {
 void ST7789V::loop() {}
 
 void ST7789V::write_display_data() {
+// 240x240 1.3"
+  uint16_t x1 = 0;   // _offsetx
+  uint16_t x2 = 320;  // _offsetx
+  uint16_t y1 = 0;   // _offsety
+  uint16_t y2 = 320;  // _offsety
+/* 135x240 ?!
   uint16_t x1 = 52;   // _offsetx
   uint16_t x2 = 186;  // _offsetx
   uint16_t y1 = 40;   // _offsety
   uint16_t y2 = 279;  // _offsety
-
+*/
   this->enable();
 
   // set column(x) address
@@ -160,8 +168,13 @@ void ST7789V::write_display_data() {
   this->write_byte(ST7789_RAMWR);
   this->dc_pin_->digital_write(true);
 
-  this->write_array(this->buffer_, this->get_buffer_length_());
-
+  for (size_t i = 0; i < this->buffers_->size(); i++)
+  {
+    size_t len;
+    uint8_t *chunk = nullptr;
+    this->buffers_->get_chunk(i, chunk, len);
+    this->write_array(chunk, len);
+  }
   this->disable();
 }
 
@@ -270,8 +283,8 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   auto color565 = display::ColorUtil::color_to_565(color);
 
   uint16_t pos = (x + y * this->get_width_internal()) * 2;
-  this->buffer_[pos++] = (color565 >> 8) & 0xff;
-  this->buffer_[pos] = color565 & 0xff;
+  this->buffers_->set_pixel(pos, (color565 >> 8) & 0xff);
+  this->buffers_->set_pixel(pos+1, (color565 & 0xff));
 }
 
 }  // namespace st7789v
