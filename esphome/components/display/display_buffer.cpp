@@ -1,6 +1,8 @@
 #include "display_buffer.h"
 
 #include <utility>
+#include <inttypes.h>
+#include <Esp.h>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
