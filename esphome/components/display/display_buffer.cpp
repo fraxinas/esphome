@@ -2,7 +2,9 @@
 
 #include <utility>
 #include <inttypes.h>
-#include <Esp.h>
+#ifdef USE_ESP32
+#include <esp_heap_caps.h>
+#endif
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
@@ -64,7 +66,7 @@ bool DisplayBufferHeapList::add(uint8_t *buffer, size_t len) {
   tmp->len = len;
   tmp->data = buffer;
   tmp->next = NULL;
-  
+
   if(root){
     last->next = tmp;
     last = tmp;
@@ -72,7 +74,7 @@ bool DisplayBufferHeapList::add(uint8_t *buffer, size_t len) {
     root = tmp;
     last = tmp;
   }
-  
+
   _size++;
   return true;
 }
@@ -80,7 +82,7 @@ bool DisplayBufferHeapList::add(uint8_t *buffer, size_t len) {
 uint8_t *DisplayBufferHeapList::get_pixel(size_t index) {
   int offset = 0;
   Buffer_* current = root;
-  
+
   while (current) {
     if (offset < current->len) {
       return &(current->data[index-offset]);
@@ -109,17 +111,17 @@ void DisplayBufferHeapList::clear_pixels(uint8_t pattern) {
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   size_t allocated = 0;
   this->buffers_ = new DisplayBufferHeapList;
-  
+
   while (allocated < buffer_length)
   {
-    size_t heap_chunk_avail = ESP.getMaxAllocHeap();
-    size_t needed = buffer_length - allocated; 
+    size_t heap_chunk_avail = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    size_t needed = buffer_length - allocated;
     size_t allocate = (needed > heap_chunk_avail) ? heap_chunk_avail : needed;
-    ESP_LOGD(TAG, "ESP.getMaxAllocHeap=%" PRIu32 "  needed=%" PRIu32, heap_chunk_avail, needed);
+    ESP_LOGD(TAG, "largest free block=%" PRIu32 "  needed=%" PRIu32, heap_chunk_avail, needed);
     uint8_t *buffer = (uint8_t *) heap_caps_malloc(allocate, MALLOC_CAP_8BIT);
     if (buffer == nullptr)
     {
-      ESP_LOGE(TAG, "Could not allocate buffer of size %" PRIu32 " for display! ESP.getFreeHeap: %" PRIu32, buffer_length, ESP.getFreeHeap());
+      ESP_LOGE(TAG, "Could not allocate buffer of size %" PRIu32 " for display! ESP.getFreeHeap: %" PRIu32, buffer_length, heap_caps_get_free_size(MALLOC_CAP_8BIT));
       this->buffers_ = nullptr;
       return;
     }
@@ -281,9 +283,10 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!font->get_glyphs().empty()) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
-        for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++)
+        for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
             this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+        }
         x_at += glyph_width;
       }
 
