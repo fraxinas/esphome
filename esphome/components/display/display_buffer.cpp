@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <inttypes.h>
+#include <math.h>
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
 #endif
@@ -13,6 +14,8 @@
 
 namespace esphome {
 namespace display {
+
+#define PI 3.14159265
 
 static const char *const TAG = "display";
 
@@ -266,6 +269,138 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color 
       err += ++dx * 2 + 1;
     }
   } while (dx <= 0);
+}
+
+void DisplayBuffer::draw_sector_(int sector, double percentage, int center_x, int center_y, int radius, Color line_color, Color indicator_color) {
+  int dx = 0;
+  int dy = radius;
+  int err = 3 - 2 * radius;
+  Color active_color, inactive_color;
+  int x_t = 0;
+
+  if (percentage >= (sector+1)/6.) {
+    active_color = indicator_color;
+  } else if (percentage <= sector/6.) {
+    active_color = line_color;
+  } else {
+    /* partially highlighted sector, do trigonometry */
+    if (sector % 2 == 0) {
+        active_color = line_color;
+        inactive_color = indicator_color;
+        percentage = (sector+1)/6.-percentage;
+    } else {
+        active_color = indicator_color;
+        inactive_color = line_color;
+        percentage = percentage-sector/6.;
+    }
+    double threshold_angle = 2*PI*0.75*percentage;
+    x_t = radius * sin(threshold_angle);
+  }
+
+  do {
+    if (x_t > 0 && dx > x_t) {
+      active_color = inactive_color;
+    }
+    switch (sector) {
+      case 0:
+        this->draw_pixel_at(center_x - dy, center_y + dx, active_color); break;
+      case 1:
+        this->draw_pixel_at(center_x - dy, center_y - dx, active_color); break;
+      case 2:
+        this->draw_pixel_at(center_x - dx, center_y - dy, active_color); break;
+      case 3:
+        this->draw_pixel_at(center_x + dx, center_y - dy, active_color); break;
+      case 4:
+        this->draw_pixel_at(center_x + dy, center_y - dx, active_color); break;
+      case 5:
+        this->draw_pixel_at(center_x + dy, center_y + dx, active_color); break;
+    }
+    if (err < 0) {
+      err += (4 * dx) + 6;
+    }
+    else {
+      err += (4 * (dx - dy)) + 10;
+      dy -= 1;
+    }
+    dx += 1;
+  } while (dx <= dy);
+}
+
+void HOT DisplayBuffer::gauge(int center_x, int center_y, int radius, float percentage, Color line_color, Color indicator_color, bool set_mode) {
+  for (uint8_t sector = 0; sector < 6; sector++) {
+    this->draw_sector_(sector, percentage, center_x, center_y, radius, line_color, indicator_color);
+    this->draw_sector_(sector, percentage, center_x, center_y, radius-1, line_color, indicator_color);
+    this->draw_sector_(sector, percentage, center_x, center_y, radius-2, line_color, indicator_color);
+  }
+  double angle = PI*-0.25 - 2*PI*0.75*percentage;
+  int dx = round((radius-1) * sin(angle));
+  int dy = round((radius-1) * cos(angle));
+  if (set_mode)
+    this->filled_circle(center_x + dx, center_y + dy, radius/10, indicator_color);
+  else
+    this->circle(center_x + dx, center_y + dy, radius/10, line_color);
+}
+
+void HOT DisplayBuffer::color_picker(int x, int y, Image *image, Color color, unsigned char set_mode) {
+  int width = image->get_width();
+  int radius = std::floor(width/2.);
+
+  int h;
+  float s, v;
+  rgb_to_hsv(color.r, color.g, color.b, h, s, v);
+
+  uint8_t v_x_pos = width, v_height = 10;
+  for (int vx = 0; vx <= width; vx++) {
+    float r, g, b, xv = 255.*vx/float(width);
+    hsv_to_rgb(h, s, xv, r, g, b);
+    Color vc = Color(r, g, b);
+    this->line(x + vx, y, x + vx, y + v_height, vc);
+    if (v_x_pos == width && xv >= v) {
+      v_x_pos = vx;
+    }
+  }
+
+  v_x_pos += x;
+  int y_pos = y+v_height;
+  int triangle_size = 5;
+
+  if (set_mode == 1) {
+    triangle_size = 10;
+    this->rectangle(x, y, width, v_height, COLOR_ON);
+    for (int j = triangle_size-1; j > 0; j--) {
+      this->line(v_x_pos-j, y_pos+j, v_x_pos+j, y_pos+j, color);
+    }
+    this->line(v_x_pos-triangle_size, y_pos+triangle_size, v_x_pos+triangle_size, y_pos+triangle_size, COLOR_ON);
+  }
+  this->line(v_x_pos, y_pos, v_x_pos-triangle_size, y_pos+triangle_size, COLOR_ON);
+  this->line(v_x_pos, y_pos, v_x_pos+triangle_size, y_pos+triangle_size, COLOR_ON);
+
+  y_pos += 11;
+
+  this->image(x, y_pos, image);
+  int center_x = radius + x;
+  int center_y = std::floor(image->get_height()/2.) + y_pos;
+
+  float angle = (2.*h/360.-1)*PI;
+  int dx = radius * s * cos(angle);
+  int dy = radius * s * sin(angle);
+
+  int indicator_size = radius/20.;
+  if (set_mode > 1) {
+    indicator_size = radius/10.;
+    this->line(center_x, center_y, center_x - dx, center_y - dy, COLOR_OFF);
+  }
+
+  if (set_mode != 4) {
+    this->circle(center_x - dx, center_y - dy, indicator_size, COLOR_OFF);
+    if (s > 0.8)
+      this->circle(center_x - dx, center_y - dy, indicator_size+1, COLOR_ON);
+  } else {
+    this->rectangle(center_x - dx - indicator_size, center_y - dy - indicator_size, 2*indicator_size, 2*indicator_size, COLOR_OFF);
+    indicator_size--;
+    this->rectangle(center_x - dx - indicator_size, center_y - dy - indicator_size, 2*indicator_size, 2*indicator_size, COLOR_ON);
+  }
+
 }
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
