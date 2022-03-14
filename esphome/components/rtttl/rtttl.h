@@ -24,6 +24,11 @@ class Rtttl : public Component {
     this->on_finished_playback_callback_.add(std::move(callback));
   }
 
+  void add_on_prepare_playback_callback(std::function<void()> callback) {
+    this->on_prepare_playback_callback_.add(std::move(callback));
+  }
+
+
  protected:
   inline uint8_t get_integer_() {
     uint8_t ret = 0;
@@ -45,6 +50,7 @@ class Rtttl : public Component {
   output::FloatOutput *output_;
 
   CallbackManager<void()> on_finished_playback_callback_;
+  CallbackManager<void()> on_prepare_playback_callback_;
 };
 
 template<typename... Ts> class PlayAction : public Action<Ts...> {
@@ -72,6 +78,13 @@ class FinishedPlaybackTrigger : public Trigger<> {
  public:
   explicit FinishedPlaybackTrigger(Rtttl *parent) {
     parent->add_on_finished_playback_callback([this]() { this->trigger(); });
+  }
+};
+
+class PreparePlaybackTrigger : public Trigger<> {
+ public:
+  explicit PreparePlaybackTrigger(Rtttl *parent) {
+    parent->add_on_prepare_playback_callback([this]() { this->trigger(); });
   }
 };
 

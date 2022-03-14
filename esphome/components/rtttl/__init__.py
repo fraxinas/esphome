@@ -10,6 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet"]
 CONF_RTTTL = "rtttl"
+CONF_ON_PREPARE_PLAYBACK = "on_prepare_playback"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
@@ -19,6 +20,9 @@ PlayAction = rtttl_ns.class_("PlayAction", automation.Action)
 StopAction = rtttl_ns.class_("StopAction", automation.Action)
 FinishedPlaybackTrigger = rtttl_ns.class_(
     "FinishedPlaybackTrigger", automation.Trigger.template()
+)
+PreparePlaybackTrigger = rtttl_ns.class_(
+    "PreparePlaybackTrigger", automation.Trigger.template()
 )
 IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
@@ -33,6 +37,12 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FinishedPlaybackTrigger),
             }
         ),
+        cv.Optional(CONF_ON_PREPARE_PLAYBACK): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PreparePlaybackTrigger),
+            }
+        ),
+
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -79,6 +89,10 @@ async def to_code(config):
     cg.add(var.set_output(out))
 
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_PREPARE_PLAYBACK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
